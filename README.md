@@ -1,93 +1,126 @@
-# bsapi
+# BSAPI
 
+A basic Python wrapper for the D2LValence Brightspace API.
 
+## Design
 
-## Getting started
+At the core of the API wrapper is the `bsapi.APIContext` class, which exposes a method to decorate API endpoint routes with the required authentication query parameters.
+Generally you would not use this class directly, but instead wrap it in a higher level `bsapi.BSAPI` class.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+The `bsapi.BSAPI` class provides the wrappers for a subset of commonly used API endpoints.
+Endpoints that send data via DELETE/POST/PUT HTTP methods are typically implemented directly as public methods.
+Endpoints that get data via a GET HTTP method typically are implemented as a private method (e.g. `_whoami()`) that return the raw JSON object.
+The public method equivalent (e.g. `whoami()`) will call the private method and attempt to interpret this JSON object into a properly typed object as defined in `bsapi.types` (e.g. `bsapi.types.WhoAmIUser`).
+Generally you should use the public method, but there could be reasons to use the private method instead, namely:
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- A newer version of the API has added more fields to JSON objects returned that are not included by the typed version.
+- A newer version of the API has made non-backwards compatible changes that cause interpreting the JSON object to fail.
+- The JSON object returned does not match the API documentation, and hence interpreting it fails.
 
-## Add your files
+Ideally these last two cases do not occur, or are quickly fixed, but sadly the Brightspace API documentation is not entirely correct/consistent with the actual responses observed during testing.
+It also tends to be outdated at times, where responses contain additional fields not (yet) described by the API documentation.
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## Example usage
 
+To construct a `bsapi.BSAPI` instance, you must first construct a `bsapi.APIContext` instance.
+After this you can construct the `bsapi.BSAPI` instance by providing this API context, and the desired LE and LP product versions.
+
+```python
+lms_url = '<your LMS host URL>'
+app_id = '<your application id>'
+app_key = '<your application key>'
+user_id = '<user identifier>'
+user_key = '<user key>'
+le_version = '1.79'
+lp_version = '1.47'
+
+api_context = bsapi.APIContext(app_id, app_key, user_id, user_key, lms_url)
+api = bsapi.BSAPI(api_context, le_version, lp_version)
+whoami = api.whoami()
+
+print(f'Identified as: {whoami.first_name} {whoami.last_name}')
 ```
-cd existing_repo
-git remote add origin https://gitlab.science.ru.nl/brightspace/bsapi.git
-git branch -M main
-git push -uf origin main
+
+If you want to verify whether the configured LE and LP product versions are supported, call the `api.check_versions()` method.
+It is also possible to forcibly use the latest supported versions by calling `api.check_versions(use_latest=True)`.
+This will overwrite the configured LE and LP product versions with the latest ones according to the LMS host.
+Generally you want to specify explicit versions.
+Even though updates are typically backwards compatible, it may still have unexpected results or cause issues with this wrapper.
+As such, testing and using explicit versions may provide better long term stability.
+
+The `bsapi.APIConfig` class provides a way to collect the various configuration parameters, which can easily be serialized to and deserialized from JSON.
+Using this configuration instance, a convenience method can be called to create `bsapi.BSAPI` instances via `BSAPI.from_config(config, user_id, user_key)`.
+This implicitly creates the API context based on the options in the configuration, and the provided user identifier and key.
+
+## Generating user identifiers and keys
+
+Call `bsapi.create_auth_url(...)` to generate a URL users can visit to start the authentication process.
+If successful this will redirect to the `client_callback_url` trusted URL, which contains the user identifier and user key in parameters.
+The `bsapi.parse_callback_url(...)` method can be used to parse and extract the user identifier and key from this redirect URL.
+
+## Feedback
+
+The `bsapi.feedback` module contains several `FeedbackEncoder` implementations that allow feedback plain-text to be formatted as HTML.
+This formatted HTML can then be provided as rich-text HTML input for the `bsapi.BSAPI.set_dropbox_folder_submission_feedback` endpoint using the `feedback_html` parameter.
+The use case for this module is graders writing student feedback in plain-text with some Markdown influence, which allows them to insert objects such as code blocks that are then nicely rendered to students.
+
+## Helper
+
+The `bsapi.helper` module defines an `APIHelper` class that wraps around a `bsapi.BSAPI` instance.
+It extends the API by providing helper methods to perform common operations not directly supported by the API.
+
+## Identity management
+
+Users need to authenticate to the Brightspace API using an (identifier,key) pair.
+This pair is generated by logging in at their organization page, which can be a cumbersome process if repeated often.
+Since these pairs do not expire, it is possible to store and re-use them.
+This is especially useful if users have multiple accounts, possibly across several LMS hosts.
+
+For this reason the `bsapi.identity` module provides an `IdentityManager` class.
+This class providers an interactive TUI to select and manage identities for specific LMS hosts, which wrap these (identifier,key) pairs.
+Identities can be temporarily created in memory, or persistently saved to an on-disk database for future re-use.
+
+It is also possible to mark an identity as the "default" identity for a specific tag string.
+This allows the manager to return the default identity for a requested tag, if one exists, without further user interaction.
+
+### Example usage
+
+The basic usage of the manager is as follows.
+
+```python
+lms_url = '<your LMS host URL>'
+app_id = '<your application id>'
+app_key = '<your application key>'
+client_app_url = '<your application trusted URL>'
+tag = 'example-tag'
+
+# Step 1: create the manager.
+# The app_id, app_key and client_app_url parameters are optional, but required if you want users to be able to generate new (identifier,key) pairs.
+identity_manager = bsapi.identity.IdentityManager(lms_url, app_id, app_key, client_app_url)
+
+# Step 2: load saved identities from disk, if any exist. This step is optional, but results in an empty list of identities if skipped.
+identity_manager.load_store()
+
+# Step 3: ask user to select an identity.
+# If a tag is provided, and a default identity exists for that tag, it is immediately returned without user interaction.
+# Otherwise a list of available identities for the LMS host in question is presented from which the user can pick one.
+# It also has the option to start the manager which allows the creation/removal and general management of stored/available identities for the LMS host in question.
+identity = identity_manager.get_identity(tag)
+
+# Step 4: ensure the user has actually selected an identity.
+# The returned identity is `None` if none has been selected.
+if identity:
+    print(f'user identifier: {identity.user_id}')
+    print(f'user key: {identity.user_key}')
 ```
 
-## Integrate with your tools
+It is also possible to start the manager using `identity_manager.manage()`, rather than asking the user to select an identity via `identity_manager.get_identity(tag)`.
+This is especially useful if users incorrectly mark an identity as default for a tag, as then they will not be presented with the manager option to clear this incorrect tag.
+By starting the manager this way, users are not asked to select an identity, but instead only have the option to manage identities.
+As such this method does not return a result, unlike getting an identity which typically returns an identity.
 
-- [ ] [Set up project integrations](https://gitlab.science.ru.nl/brightspace/bsapi/-/settings/integrations)
+The manager can also be created from a `bsapi.APIConfig` instance using `IdentityManager.from_config(config)`, which is simply a convenience method wrapping the `__init__` method.
 
-## Collaborate with your team
+## Building
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Execute `python3 -m build` to build the Python wheel, which can then be installed using `python3 -m pip install <bsapi-...-py3-none-any.whl>`.

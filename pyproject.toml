@@ -1,0 +1,17 @@
+[build-system]
+requires = ['setuptools']
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bsapi"
+version = "1.0.1"
+authors = [
+  { name="Ciske Harsema", email="Ciske.Harsema@ru.nl" },
+]
+description = "Basic Python wrapper for the D2LValence Brightspace API, with some added utilities for identity management and text to HTML conversion."
+dependencies = [
+    "requests"
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
