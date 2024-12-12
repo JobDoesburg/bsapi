@@ -635,6 +635,14 @@ class BSAPI:
         return [bsapi.types.GroupCategoryData.from_json(category) for category in
                 self._get_group_categories(org_unit_id)]
 
+    def _get_group_category(self, org_unit_id: int, group_category_id: int):
+        """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)"""
+        return self._get_json(self._get_lp_route(f'{org_unit_id}/groupcategories/{group_category_id}'))
+
+    def get_group_category(self, org_unit_id: int, group_category_id: int) -> bsapi.types.GroupCategoryData:
+        """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)"""
+        return bsapi.types.GroupCategoryData.from_json(self._get_group_category(org_unit_id, group_category_id))
+
     def _get_groups(self, org_unit_id: int, group_category_id: int):
         """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)-groups-"""
         return self._get_json(self._get_lp_route(f'{org_unit_id}/groupcategories/{group_category_id}/groups/'))
