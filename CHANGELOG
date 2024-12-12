@@ -1,0 +1,7 @@
+# [1.0.1] - 2024-11-13
+
+- Bugfix: Change default value of `score` parameter in `BSAPI.set_dropbox_folder_submission_feedback` to `None` instead of 0, as this caused issues when `symbol` was set without explicitly setting `score` to `None`.
+
+# [1.0.0] - 2024-11-12
+
+Initial release
