@@ -2,6 +2,10 @@
 
 A basic Python wrapper for the [D2LValence Brightspace API](https://docs.valence.desire2learn.com).
 
+## Installation
+
+The package can be installed using `pip` by running `python -m pip install brightspace-api`.
+
 ## Example usage
 
 To construct a `bsapi.BSAPI` instance, you must first construct a `bsapi.APIContext` instance.

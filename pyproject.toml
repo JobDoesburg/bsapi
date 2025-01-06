@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bsapi"
-version = "1.0.2"
+version = "1.0.1"
 authors = [
     { name="Ciske Harsema", email="Ciske.Harsema@ru.nl" },
     { name="Job Doesburg", email="Job.Doesburg@ru.nl" }
