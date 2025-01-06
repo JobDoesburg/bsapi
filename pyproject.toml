@@ -3,8 +3,8 @@ requires = ['setuptools']
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bsapi"
-version = "1.0.1"
+name = "brightspace-api"
+version = "1.0.3"
 authors = [
     { name="Ciske Harsema", email="Ciske.Harsema@ru.nl" },
     { name="Job Doesburg", email="Job.Doesburg@ru.nl" }
