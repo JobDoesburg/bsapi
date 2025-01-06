@@ -1,24 +1,6 @@
 # BSAPI
 
-A basic Python wrapper for the D2LValence Brightspace API.
-
-## Design
-
-At the core of the API wrapper is the `bsapi.APIContext` class, which exposes a method to decorate API endpoint routes with the required authentication query parameters.
-Generally you would not use this class directly, but instead wrap it in a higher level `bsapi.BSAPI` class.
-
-The `bsapi.BSAPI` class provides the wrappers for a subset of commonly used API endpoints.
-Endpoints that send data via DELETE/POST/PUT HTTP methods are typically implemented directly as public methods.
-Endpoints that get data via a GET HTTP method typically are implemented as a private method (e.g. `_whoami()`) that return the raw JSON object.
-The public method equivalent (e.g. `whoami()`) will call the private method and attempt to interpret this JSON object into a properly typed object as defined in `bsapi.types` (e.g. `bsapi.types.WhoAmIUser`).
-Generally you should use the public method, but there could be reasons to use the private method instead, namely:
-
-- A newer version of the API has added more fields to JSON objects returned that are not included by the typed version.
-- A newer version of the API has made non-backwards compatible changes that cause interpreting the JSON object to fail.
-- The JSON object returned does not match the API documentation, and hence interpreting it fails.
-
-Ideally these last two cases do not occur, or are quickly fixed, but sadly the Brightspace API documentation is not entirely correct/consistent with the actual responses observed during testing.
-It also tends to be outdated at times, where responses contain additional fields not (yet) described by the API documentation.
+A basic Python wrapper for the [D2LValence Brightspace API](https://docs.valence.desire2learn.com).
 
 ## Example usage
 
@@ -51,6 +33,24 @@ As such, testing and using explicit versions may provide better long term stabil
 The `bsapi.APIConfig` class provides a way to collect the various configuration parameters, which can easily be serialized to and deserialized from JSON.
 Using this configuration instance, a convenience method can be called to create `bsapi.BSAPI` instances via `BSAPI.from_config(config, user_id, user_key)`.
 This implicitly creates the API context based on the options in the configuration, and the provided user identifier and key.
+
+## Design
+
+At the core of the API wrapper is the `bsapi.APIContext` class, which exposes a method to decorate API endpoint routes with the required authentication query parameters.
+Generally you would not use this class directly, but instead wrap it in a higher level `bsapi.BSAPI` class.
+
+The `bsapi.BSAPI` class provides the wrappers for a subset of commonly used API endpoints.
+Endpoints that send data via DELETE/POST/PUT HTTP methods are typically implemented directly as public methods.
+Endpoints that get data via a GET HTTP method typically are implemented as a private method (e.g. `_whoami()`) that return the raw JSON object.
+The public method equivalent (e.g. `whoami()`) will call the private method and attempt to interpret this JSON object into a properly typed object as defined in `bsapi.types` (e.g. `bsapi.types.WhoAmIUser`).
+Generally you should use the public method, but there could be reasons to use the private method instead, namely:
+
+- A newer version of the API has added more fields to JSON objects returned that are not included by the typed version.
+- A newer version of the API has made non-backwards compatible changes that cause interpreting the JSON object to fail.
+- The JSON object returned does not match the API documentation, and hence interpreting it fails.
+
+Ideally these last two cases do not occur, or are quickly fixed, but sadly the Brightspace API documentation is not entirely correct/consistent with the actual responses observed during testing.
+It also tends to be outdated at times, where responses contain additional fields not (yet) described by the API documentation.
 
 ## Generating user identifiers and keys
 
