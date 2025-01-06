@@ -17,7 +17,11 @@ class APIHelper:
         :param course_code: The course code to find.
         :return: List of all matching courses.
         """
-        return [course for course in self.api.get_course_enrollments() if course.org_unit.code == course_code]
+        return [
+            course
+            for course in self.api.get_course_enrollments()
+            if course.org_unit.code == course_code
+        ]
 
     def find_course_by_code(self, course_code: str) -> bsapi.types.MyOrgUnitInfo:
         """Find course with the provided course code.
@@ -40,7 +44,11 @@ class APIHelper:
         :param course_name: The course name to find.
         :return: List of all matching courses.
         """
-        return [course for course in self.api.get_course_enrollments() if course.org_unit.name == course_name]
+        return [
+            course
+            for course in self.api.get_course_enrollments()
+            if course.org_unit.name == course_name
+        ]
 
     def find_course_by_name(self, course_name: str) -> bsapi.types.MyOrgUnitInfo:
         """Find course with the provided course code.
@@ -57,16 +65,24 @@ class APIHelper:
 
         return courses[0]
 
-    def find_group_categories(self, org_unit_id: int, category_name: str) -> list[bsapi.types.GroupCategoryData]:
+    def find_group_categories(
+        self, org_unit_id: int, category_name: str
+    ) -> list[bsapi.types.GroupCategoryData]:
         """Find all groups categories with the provided category name.
 
         :param org_unit_id: The orgUnitId of the course.
         :param category_name: The category name to find.
         :return: List of all matching group categories.
         """
-        return [category for category in self.api.get_group_categories(org_unit_id) if category.name == category_name]
+        return [
+            category
+            for category in self.api.get_group_categories(org_unit_id)
+            if category.name == category_name
+        ]
 
-    def find_group_category(self, org_unit_id: int, category_name: str) -> bsapi.types.GroupCategoryData:
+    def find_group_category(
+        self, org_unit_id: int, category_name: str
+    ) -> bsapi.types.GroupCategoryData:
         """Find group category with the provided category name.
 
         :param org_unit_id: The orgUnitId of the course.
@@ -78,11 +94,15 @@ class APIHelper:
         if not categories:
             raise ValueError(f'No group category with name "{category_name}" found')
         if len(categories) > 1:
-            raise ValueError(f'Found {len(categories)} group categories with name "{category_name}"')
+            raise ValueError(
+                f'Found {len(categories)} group categories with name "{category_name}"'
+            )
 
         return categories[0]
 
-    def find_groups(self, org_unit_id: int, group_category_id: int, group_name: str) -> list[bsapi.types.GroupData]:
+    def find_groups(
+        self, org_unit_id: int, group_category_id: int, group_name: str
+    ) -> list[bsapi.types.GroupData]:
         """Find all groups with the provided group name.
 
         :param org_unit_id: The orgUnitId of the course.
@@ -90,9 +110,15 @@ class APIHelper:
         :param group_name: The group name to find.
         :return: List of all matching groups.
         """
-        return [group for group in self.api.get_groups(org_unit_id, group_category_id) if group.name == group_name]
+        return [
+            group
+            for group in self.api.get_groups(org_unit_id, group_category_id)
+            if group.name == group_name
+        ]
 
-    def find_group(self, org_unit_id: int, group_category_id: int, group_name: str) -> bsapi.types.GroupData:
+    def find_group(
+        self, org_unit_id: int, group_category_id: int, group_name: str
+    ) -> bsapi.types.GroupData:
         """Find group with the provided group name.
 
         :param org_unit_id: The orgUnitId of the course.
@@ -109,17 +135,24 @@ class APIHelper:
 
         return groups[0]
 
-    def find_assignments(self, org_unit_id: int, assignment_name: str) -> list[bsapi.types.DropboxFolder]:
+    def find_assignments(
+        self, org_unit_id: int, assignment_name: str
+    ) -> list[bsapi.types.DropboxFolder]:
         """Find all assignment dropbox folders with the provided assignment name.
 
         :param org_unit_id: The orgUnitId of the course.
         :param assignment_name: The assignment name to find.
         :return: List of all matching assignment dropbox folders.
         """
-        return [assignment for assignment in self.api.get_dropbox_folders(org_unit_id) if
-                assignment.name == assignment_name]
+        return [
+            assignment
+            for assignment in self.api.get_dropbox_folders(org_unit_id)
+            if assignment.name == assignment_name
+        ]
 
-    def find_assignment(self, org_unit_id: int, assignment_name: str) -> bsapi.types.DropboxFolder:
+    def find_assignment(
+        self, org_unit_id: int, assignment_name: str
+    ) -> bsapi.types.DropboxFolder:
         """Find assignment dropbox folder with the provided assignment name.
 
         :param org_unit_id: The orgUnitId of the course.
@@ -131,11 +164,19 @@ class APIHelper:
         if not assignments:
             raise ValueError(f'No assignment with name "{assignment_name}" found')
         if len(assignments) > 1:
-            raise ValueError(f'Found {len(assignments)} assignments with name "{assignment_name}"')
+            raise ValueError(
+                f'Found {len(assignments)} assignments with name "{assignment_name}"'
+            )
 
         return assignments[0]
 
-    def enroll_users_in_group(self, org_unit_id: int, group_category_id: int, group_id: int, user_ids: list[int]):
+    def enroll_users_in_group(
+        self,
+        org_unit_id: int,
+        group_category_id: int,
+        group_id: int,
+        user_ids: list[int],
+    ):
         """Enroll all given users in the specified group.
 
         :param org_unit_id: The orgUnitId of the course.
@@ -144,9 +185,17 @@ class APIHelper:
         :param user_ids: The list of users to enroll.
         """
         for user_id in user_ids:
-            self.api.enroll_user_in_group(org_unit_id, group_category_id, group_id, user_id)
+            self.api.enroll_user_in_group(
+                org_unit_id, group_category_id, group_id, user_id
+            )
 
-    def remove_users_from_group(self, org_unit_id: int, group_category_id: int, group_id: int, user_ids: list[int]):
+    def remove_users_from_group(
+        self,
+        org_unit_id: int,
+        group_category_id: int,
+        group_id: int,
+        user_ids: list[int],
+    ):
         """Remove all given users from the specified group.
 
         :param org_unit_id: The orgUnitId of the course.
@@ -155,10 +204,17 @@ class APIHelper:
         :param user_ids: The list of users to remove.
         """
         for user_id in user_ids:
-            self.api.remove_user_from_group(org_unit_id, group_category_id, group_id, user_id)
+            self.api.remove_user_from_group(
+                org_unit_id, group_category_id, group_id, user_id
+            )
 
-    def set_group_members(self, org_unit_id: int, group_category_id: int, group_id: int, user_ids: list[int]) -> list[
-        int]:
+    def set_group_members(
+        self,
+        org_unit_id: int,
+        group_category_id: int,
+        group_id: int,
+        user_ids: list[int],
+    ) -> list[int]:
         """Set the group members of the specified group to be exactly that of the given users. This is a multistep
         process. First a list of current members is obtained. Then all users not already enrolled are enrolled in the
         group. Finally, all existing members not part of the given users are removed.
@@ -171,15 +227,23 @@ class APIHelper:
         """
         group_data = self.api.get_group(org_unit_id, group_category_id, group_id)
 
-        to_enroll = [user_id for user_id in user_ids if user_id not in group_data.enrollments]
-        to_remove = [user_id for user_id in group_data.enrollments if user_id not in user_ids]
+        to_enroll = [
+            user_id for user_id in user_ids if user_id not in group_data.enrollments
+        ]
+        to_remove = [
+            user_id for user_id in group_data.enrollments if user_id not in user_ids
+        ]
 
         self.enroll_users_in_group(org_unit_id, group_category_id, group_id, to_enroll)
-        self.remove_users_from_group(org_unit_id, group_category_id, group_id, to_remove)
+        self.remove_users_from_group(
+            org_unit_id, group_category_id, group_id, to_remove
+        )
 
         return group_data.enrollments
 
-    def clear_group_members(self, org_unit_id: int, group_category_id: int, group_id: int) -> list[int]:
+    def clear_group_members(
+        self, org_unit_id: int, group_category_id: int, group_id: int
+    ) -> list[int]:
         """Clear all group members from the specified group. First a list of all members is obtained, which are then
         subsequently removed.
 
@@ -190,6 +254,8 @@ class APIHelper:
         """
         group_data = self.api.get_group(org_unit_id, group_category_id, group_id)
 
-        self.remove_users_from_group(org_unit_id, group_category_id, group_id, group_data.enrollments)
+        self.remove_users_from_group(
+            org_unit_id, group_category_id, group_id, group_data.enrollments
+        )
 
         return group_data.enrollments
