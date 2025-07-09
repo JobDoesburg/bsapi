@@ -12,69 +12,10 @@ import urllib.parse
 
 import bsapi.types
 
-BS_OAUTH_AUTH_URL = "https://auth.brightspace.com/oauth2/auth"
-BS_OAUTH_TOKEN_URL = "https://auth.brightspace.com/core/connect/token"
-BS_OAUTH_SCOPE = "core:*:*"
-
 ENTITY_TYPE_GROUP = "group"
 ENTITY_TYPE_USER = "user"
 
 logger = logging.getLogger(__name__)
-
-def create_auth_url(
-        client_id: str, redirect_uri: str
-) -> str:
-    """Create OAuth 2.0 authorization URL."""
-    params = {
-        "response_type": "code",
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-        "scope": BS_OAUTH_SCOPE,
-    }
-    query = urllib.parse.urlencode(params)
-    return f"{BS_OAUTH_AUTH_URL}?{query}"
-
-
-def exchange_code_for_token(
-        client_id: str,
-        client_secret: str,
-        redirect_uri: str,
-        authorization_code: str
-) -> dict:
-    """Exchange authorization code for access token using explicit form encoding."""
-
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Python-OAuth-Client/1.0"
-    }
-
-    data = {
-        "grant_type": "authorization_code",
-        "code": authorization_code,
-        "redirect_uri": redirect_uri,
-        "client_id": client_id,
-        "client_secret": client_secret,
-    }
-
-    response = requests.post(BS_OAUTH_TOKEN_URL, data=data, headers=headers)
-    if response.status_code != 200:
-        raise APIError(f"Token exchange failed: {response.status_code}: {response.text}")
-
-    return response.json()
-
-
-
-def parse_callback_url(callback_url: str) -> str:
-    """Parse OAuth callback URL to extract authorization code."""
-    components = urllib.parse.urlsplit(callback_url)
-    query_dict = urllib.parse.parse_qs(components.query)
-
-    if "code" not in query_dict:
-        raise ValueError('Missing authorization code in callback URL')
-    if len(query_dict["code"]) != 1:
-        raise ValueError('Invalid authorization code in callback URL')
-
-    return query_dict["code"][0]
 
 
 class APIError(RuntimeError):
@@ -102,6 +43,7 @@ class APIError(RuntimeError):
 @dataclass
 class APIConfig:
     """Holds configuration information needed to set up the API access from an application perspective."""
+
     client_id: str
     client_secret: str
     lms_url: str
@@ -146,7 +88,11 @@ class BSAPI:
     _VALID_ENTITY_TYPES = [ENTITY_TYPE_USER, ENTITY_TYPE_GROUP]
 
     def __init__(
-        self, access_token: str, host: str, le_version: str = "1.79", lp_version: str = "1.47"
+        self,
+        access_token: str,
+        host: str,
+        le_version: str = "1.79",
+        lp_version: str = "1.47",
     ):
         """Construct a new Brightspace API wrapper instance.
 
@@ -740,11 +686,17 @@ class BSAPI:
 
     def _get_group_category(self, org_unit_id: int, group_category_id: int):
         """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)"""
-        return self._get_json(self._get_lp_route(f'{org_unit_id}/groupcategories/{group_category_id}'))
+        return self._get_json(
+            self._get_lp_route(f"{org_unit_id}/groupcategories/{group_category_id}")
+        )
 
-    def get_group_category(self, org_unit_id: int, group_category_id: int) -> bsapi.types.GroupCategoryData:
+    def get_group_category(
+        self, org_unit_id: int, group_category_id: int
+    ) -> bsapi.types.GroupCategoryData:
         """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)"""
-        return bsapi.types.GroupCategoryData.from_json(self._get_group_category(org_unit_id, group_category_id))
+        return bsapi.types.GroupCategoryData.from_json(
+            self._get_group_category(org_unit_id, group_category_id)
+        )
 
     def _get_groups(self, org_unit_id: int, group_category_id: int):
         """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)-groups-"""
