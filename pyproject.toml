@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brightspace-api"
-version = "1.0.3"
+version = "2.0.0"
 authors = [
     { name="Ciske Harsema", email="Ciske.Harsema@ru.nl" },
     { name="Job Doesburg", email="Job.Doesburg@ru.nl" }
 ]
-description = "Basic Python wrapper for the D2LValence Brightspace API, with some added utilities for identity management and text to HTML conversion."
+description = "Basic Python wrapper for the D2LValence Brightspace API using OAuth 2.0, with some added utilities and text to HTML conversion."
 dependencies = [
     "requests"
 ]
