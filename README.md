@@ -43,7 +43,8 @@ from bsapi import oauth
 # Step 1: Create authorization URL
 client_id = '<your client id>'
 redirect_uri = '<your redirect URI>'
-auth_url = oauth.create_auth_url(client_id, redirect_uri)
+scope = "core:*:* grades:*:*"
+auth_url = oauth.create_auth_url(client_id, redirect_uri, scope)
 print(f'Visit: {auth_url}')
 
 # Step 2: After user authorizes, extract code from callback URL
