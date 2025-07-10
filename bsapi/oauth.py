@@ -5,11 +5,10 @@ from bsapi import APIError
 
 BS_OAUTH_AUTH_URL = "https://auth.brightspace.com/oauth2/auth"
 BS_OAUTH_TOKEN_URL = "https://auth.brightspace.com/core/connect/token"
-BS_OAUTH_SCOPE = "core:*:*"
 
 
 def create_auth_url(
-    client_id: str, redirect_uri: str, scope: str = BS_OAUTH_SCOPE
+    client_id: str, redirect_uri: str, scope: str
 ) -> str:
     """Create OAuth 2.0 authorization URL."""
     params = {
