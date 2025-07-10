@@ -8,20 +8,15 @@ The package can be installed using `pip` by running `python -m pip install brigh
 
 ## Example usage
 
-To construct a `bsapi.BSAPI` instance, you must first construct a `bsapi.APIContext` instance.
-After this you can construct the `bsapi.BSAPI` instance by providing this API context, and the desired LE and LP product versions.
+To construct a `bsapi.BSAPI` instance, you need the LMS host URL and an OAuth access token (see below for how to obtain one).
 
 ```python
+access_token = '<your OAuth access token>'
 lms_url = '<your LMS host URL>'
-app_id = '<your application id>'
-app_key = '<your application key>'
-user_id = '<user identifier>'
-user_key = '<user key>'
 le_version = '1.79'
 lp_version = '1.47'
 
-api_context = bsapi.APIContext(app_id, app_key, user_id, user_key, lms_url)
-api = bsapi.BSAPI(api_context, le_version, lp_version)
+api = bsapi.BSAPI(access_token, lms_url, le_version, lp_version)
 whoami = api.whoami()
 
 print(f'Identified as: {whoami.first_name} {whoami.last_name}')
@@ -35,15 +30,41 @@ Even though updates are typically backwards compatible, it may still have unexpe
 As such, testing and using explicit versions may provide better long term stability.
 
 The `bsapi.APIConfig` class provides a way to collect the various configuration parameters, which can easily be serialized to and deserialized from JSON.
-Using this configuration instance, a convenience method can be called to create `bsapi.BSAPI` instances via `BSAPI.from_config(config, user_id, user_key)`.
-This implicitly creates the API context based on the options in the configuration, and the provided user identifier and key.
+Using this configuration instance, a convenience method can be called to create `bsapi.BSAPI` instances via `BSAPI.from_config(config, access_token)`.
+
+## OAuth Authentication
+
+To obtain an access token, use the OAuth 2.0 flow:
+
+```python
+import bsapi
+from bsapi import oauth
+
+# Step 1: Create authorization URL
+client_id = '<your client id>'
+redirect_uri = '<your redirect URI>'
+scope = "core:*:* grades:*:*"
+auth_url = oauth.create_auth_url(client_id, redirect_uri, scope)
+print(f'Visit: {auth_url}')
+
+# Step 2: After user authorizes, extract code from callback URL
+callback_url = '<URL user was redirected to>'
+authorization_code = oauth.parse_callback_url(callback_url)
+
+# Step 3: Exchange code for access token
+client_secret = '<your client secret>'
+token_response = oauth.exchange_code_for_token(
+    client_id, client_secret, redirect_uri, authorization_code
+)
+access_token = token_response['access_token']
+
+# Step 4: Use access token with API
+api = bsapi.BSAPI(access_token, lms_url)
+```
 
 ## Design
 
-At the core of the API wrapper is the `bsapi.APIContext` class, which exposes a method to decorate API endpoint routes with the required authentication query parameters.
-Generally you would not use this class directly, but instead wrap it in a higher level `bsapi.BSAPI` class.
-
-The `bsapi.BSAPI` class provides the wrappers for a subset of commonly used API endpoints.
+The `bsapi.BSAPI` class provides wrappers for a subset of commonly used API endpoints and uses OAuth authentication via Bearer tokens.
 Endpoints that send data via DELETE/POST/PUT HTTP methods are typically implemented directly as public methods.
 Endpoints that get data via a GET HTTP method typically are implemented as a private method (e.g. `_whoami()`) that return the raw JSON object.
 The public method equivalent (e.g. `whoami()`) will call the private method and attempt to interpret this JSON object into a properly typed object as defined in `bsapi.types` (e.g. `bsapi.types.WhoAmIUser`).
@@ -56,12 +77,6 @@ Generally you should use the public method, but there could be reasons to use th
 Ideally these last two cases do not occur, or are quickly fixed, but sadly the Brightspace API documentation is not entirely correct/consistent with the actual responses observed during testing.
 It also tends to be outdated at times, where responses contain additional fields not (yet) described by the API documentation.
 
-## Generating user identifiers and keys
-
-Call `bsapi.create_auth_url(...)` to generate a URL users can visit to start the authentication process.
-If successful this will redirect to the `client_callback_url` trusted URL, which contains the user identifier and user key in parameters.
-The `bsapi.parse_callback_url(...)` method can be used to parse and extract the user identifier and key from this redirect URL.
-
 ## Feedback
 
 The `bsapi.feedback` module contains several `FeedbackEncoder` implementations that allow feedback plain-text to be formatted as HTML.
@@ -72,58 +87,6 @@ The use case for this module is graders writing student feedback in plain-text w
 
 The `bsapi.helper` module defines an `APIHelper` class that wraps around a `bsapi.BSAPI` instance.
 It extends the API by providing helper methods to perform common operations not directly supported by the API.
-
-## Identity management
-
-Users need to authenticate to the Brightspace API using an (identifier,key) pair.
-This pair is generated by logging in at their organization page, which can be a cumbersome process if repeated often.
-Since these pairs do not expire, it is possible to store and re-use them.
-This is especially useful if users have multiple accounts, possibly across several LMS hosts.
-
-For this reason the `bsapi.identity` module provides an `IdentityManager` class.
-This class providers an interactive TUI to select and manage identities for specific LMS hosts, which wrap these (identifier,key) pairs.
-Identities can be temporarily created in memory, or persistently saved to an on-disk database for future re-use.
-
-It is also possible to mark an identity as the "default" identity for a specific tag string.
-This allows the manager to return the default identity for a requested tag, if one exists, without further user interaction.
-
-### Example usage
-
-The basic usage of the manager is as follows.
-
-```python
-lms_url = '<your LMS host URL>'
-app_id = '<your application id>'
-app_key = '<your application key>'
-client_app_url = '<your application trusted URL>'
-tag = 'example-tag'
-
-# Step 1: create the manager.
-# The app_id, app_key and client_app_url parameters are optional, but required if you want users to be able to generate new (identifier,key) pairs.
-identity_manager = bsapi.identity.IdentityManager(lms_url, app_id, app_key, client_app_url)
-
-# Step 2: load saved identities from disk, if any exist. This step is optional, but results in an empty list of identities if skipped.
-identity_manager.load_store()
-
-# Step 3: ask user to select an identity.
-# If a tag is provided, and a default identity exists for that tag, it is immediately returned without user interaction.
-# Otherwise a list of available identities for the LMS host in question is presented from which the user can pick one.
-# It also has the option to start the manager which allows the creation/removal and general management of stored/available identities for the LMS host in question.
-identity = identity_manager.get_identity(tag)
-
-# Step 4: ensure the user has actually selected an identity.
-# The returned identity is `None` if none has been selected.
-if identity:
-    print(f'user identifier: {identity.user_id}')
-    print(f'user key: {identity.user_key}')
-```
-
-It is also possible to start the manager using `identity_manager.manage()`, rather than asking the user to select an identity via `identity_manager.get_identity(tag)`.
-This is especially useful if users incorrectly mark an identity as default for a tag, as then they will not be presented with the manager option to clear this incorrect tag.
-By starting the manager this way, users are not asked to select an identity, but instead only have the option to manage identities.
-As such this method does not return a result, unlike getting an identity which typically returns an identity.
-
-The manager can also be created from a `bsapi.APIConfig` instance using `IdentityManager.from_config(config)`, which is simply a convenience method wrapping the `__init__` method.
 
 ## Building
 

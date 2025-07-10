@@ -1,9 +1,6 @@
-import base64
 from collections.abc import Callable
 from dataclasses import dataclass
 import errno
-import hashlib
-import hmac
 import logging
 import mimetypes
 import numbers
@@ -11,7 +8,6 @@ import os
 import pathlib
 from typing import Optional
 import requests
-import time
 import urllib.parse
 
 import bsapi.types
@@ -20,62 +16,6 @@ ENTITY_TYPE_GROUP = "group"
 ENTITY_TYPE_USER = "user"
 
 logger = logging.getLogger(__name__)
-
-
-def _sign(key: str, data: str) -> str:
-    kb = key.encode("utf-8")
-    db = data.encode("utf-8")
-    d = hmac.digest(kb, db, hashlib.sha256)
-    return base64.urlsafe_b64encode(d).decode("utf-8").rstrip("=").strip()
-
-
-def create_auth_url(
-    host: str, client_callback_url: str, app_id: str, app_key: str
-) -> str:
-    """Create the authentication URL visited by end-users to sign in and generate their user identifier and key.
-    This starts the legacy ID-key authentication system as described in https://docs.valence.desire2learn.com/basic/legacyauth.html.
-
-    :param host: The LMS host url.
-    :param client_callback_url: The client callback URL where the user is redirected to once successfully signed in.
-           The URL must match the one registered to the application id.
-    :param app_id: The application id to use for API access.
-    :param app_key: The application key to use for API access.
-    :return: URL the end user must visit to start the process of obtaining a user id and key.
-    """
-    params = {
-        "x_a": app_id,
-        "x_b": _sign(app_key, client_callback_url),
-        "x_target": client_callback_url,
-    }
-    query = urllib.parse.urlencode(params, doseq=True)
-    return urllib.parse.urlunsplit(("https", host, "/d2l/auth/api/token", query, ""))
-
-
-def parse_callback_url(auth_callback_url: str) -> tuple[str, str]:
-    """Parse callback URL the end user was redirected to after completing authentication by visiting the URL generated
-    by `create_auth_url`, in order to extract the user id and key.
-
-    :param auth_callback_url: URL end user was redirected to after authenticating.
-    :return: A user id and user key tuple.
-    :raises ValueError: If the callback URL is invalid, or does not contain the expected query parameters.
-    """
-    # parse_qs may raise a ValueError, urlsplit will not
-    components = urllib.parse.urlsplit(auth_callback_url)
-    query_dict = urllib.parse.parse_qs(components.query, strict_parsing=True)
-
-    if "x_a" not in query_dict:
-        raise ValueError('missing query parameter "x_a"')
-    if "x_b" not in query_dict:
-        raise ValueError('missing query parameter "x_b"')
-    if len(query_dict["x_a"]) != 1:
-        raise ValueError('query parameter "x_a" found more than once')
-    if len(query_dict["x_b"]) != 1:
-        raise ValueError('query parameter "x_b" found more than once')
-
-    user_id = query_dict["x_a"][0]
-    user_key = query_dict["x_b"][0]
-
-    return user_id, user_key
 
 
 class APIError(RuntimeError):
@@ -104,10 +44,10 @@ class APIError(RuntimeError):
 class APIConfig:
     """Holds configuration information needed to set up the API access from an application perspective."""
 
-    app_id: str
-    app_key: str
+    client_id: str
+    client_secret: str
     lms_url: str
-    client_app_url: str
+    redirect_uri: str
     le_version: str
     lp_version: str
 
@@ -119,10 +59,10 @@ class APIConfig:
         :return: The `APIConfig` instance.
         """
         return APIConfig(
-            app_id=obj["appId"],
-            app_key=obj["appKey"],
+            client_id=obj["clientId"],
+            client_secret=obj["clientSecret"],
             lms_url=obj["lmsUrl"],
-            client_app_url=obj["clientAppUrl"],
+            redirect_uri=obj["redirectUri"],
             le_version=obj["leVersion"],
             lp_version=obj["lpVersion"],
         )
@@ -133,70 +73,13 @@ class APIConfig:
         :return: The JSON dictionary.
         """
         return {
-            "appId": self.app_id,
-            "appKey": self.app_key,
+            "clientId": self.client_id,
+            "clientSecret": self.client_secret,
             "lmsUrl": self.lms_url,
-            "clientAppUrl": self.client_app_url,
+            "redirectUri": self.redirect_uri,
             "leVersion": self.le_version,
             "lpVersion": self.lp_version,
         }
-
-
-class APIContext:
-    """Core API class to store information needed to generate URLs decorated with the proper authentication query."""
-
-    def __init__(
-        self,
-        app_id: str,
-        app_key: str,
-        user_id: str,
-        user_key: str,
-        host: str,
-        server_skew: int = 0,
-    ):
-        """Construct a new API context instance.
-
-        :param app_id: The application id to use for API access.
-        :param app_key: The application key to use for API access.
-        :param user_id: The user id to use for API access.
-        :param user_key: The user key to use for API access.
-        :param host: The LMS host url.
-        :param server_skew: The time skew compared to the server in milliseconds. If the time drift to the server is too
-               large then API calls will be rejected. This may occur in VMs or on devices that have not configured NTP
-               correctly.
-        """
-        self.app_id = app_id
-        self.app_key = app_key
-        self.user_id = user_id
-        self.user_key = user_key
-        self.host = host
-        self.server_skew = server_skew
-
-    def create_authenticated_url(self, api_route: str, method: str = "GET") -> str:
-        """Create the URL to call the provided API route. The current time, adjusted by the server skew, is used as part
-        of the authentication signature, along with the HTTP method and API route. As such the server will reject API
-        calls made with a different HTTP method and/or API route than that specified in the signature. It will also
-        reject API calls if the time stamp is too far out of sync with the server, hence URLs returned by this method
-        should typically be called immediately, and not stored for prolonged periods.
-
-        :param api_route: The API route.
-        :param method: The HTML method to use for the route.
-        :return: URL decorated with query parameters to authenticate to the API backend using the application and user
-                 id and key pairs.
-        """
-        skewed_time = str(int(round(time.time() + (self.server_skew / 1000))))
-        path = urllib.parse.unquote_plus(api_route.lower())
-        sign_data = f"{method.upper()}&{path}&{skewed_time}"
-        params = {
-            "x_a": self.app_id,
-            "x_b": self.user_id,
-            "x_c": _sign(self.app_key, sign_data),
-            "x_d": _sign(self.user_key, sign_data),
-            "x_t": skewed_time,
-        }
-        query = urllib.parse.urlencode(params, doseq=True)
-
-        return urllib.parse.urlunsplit(("https", self.host, api_route, query, ""))
 
 
 class BSAPI:
@@ -205,32 +88,36 @@ class BSAPI:
     _VALID_ENTITY_TYPES = [ENTITY_TYPE_USER, ENTITY_TYPE_GROUP]
 
     def __init__(
-        self, context: APIContext, le_version: str = "1.79", lp_version: str = "1.47"
+        self,
+        access_token: str,
+        host: str,
+        le_version: str = "1.79",
+        lp_version: str = "1.47",
     ):
         """Construct a new Brightspace API wrapper instance.
 
-        :param context: The API context to use.
+        :param access_token: The OAuth access token.
+        :param host: The host URL for the API.
         :param le_version: The version to use for the LE product component.
         :param lp_version: The version to use for the LP product component.
         """
-        self.context = context
+        self.access_token = access_token
+        self.host = host
         self.le_version = le_version
         self.lp_version = lp_version
 
     @staticmethod
-    def from_config(config: APIConfig, user_id: str, user_key: str):
-        """Construct a new Brightspace API wrapper instance using the provided configuration.
+    def from_config(config: APIConfig, access_token: str):
+        """Create BSAPI instance from config and access token."""
+        return BSAPI(access_token, config.lms_url, config.le_version, config.lp_version)
 
-        :param config: The API configuration.
-        :param user_id: The user id to use for API access.
-        :param user_key: The user key to use for API access.
-        :return: The Brightspace API wrapper instance.
-        """
-        api_context = APIContext(
-            config.app_id, config.app_key, user_id, user_key, config.lms_url
-        )
+    def _create_url(self, api_route: str) -> str:
+        """Create URL for API requests."""
+        return urllib.parse.urlunsplit(("https", self.host, api_route, "", ""))
 
-        return BSAPI(api_context, config.le_version, config.lp_version)
+    def _get_auth_headers(self) -> dict:
+        """Get authorization headers for API requests."""
+        return {"Authorization": f"Bearer {self.access_token}"}
 
     def _whoami(self):
         """Wrapper for https://docs.valence.desire2learn.com/res/user.html#get--d2l-api-lp-(version)-users-whoami"""
@@ -799,11 +686,17 @@ class BSAPI:
 
     def _get_group_category(self, org_unit_id: int, group_category_id: int):
         """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)"""
-        return self._get_json(self._get_lp_route(f'{org_unit_id}/groupcategories/{group_category_id}'))
+        return self._get_json(
+            self._get_lp_route(f"{org_unit_id}/groupcategories/{group_category_id}")
+        )
 
-    def get_group_category(self, org_unit_id: int, group_category_id: int) -> bsapi.types.GroupCategoryData:
+    def get_group_category(
+        self, org_unit_id: int, group_category_id: int
+    ) -> bsapi.types.GroupCategoryData:
         """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)"""
-        return bsapi.types.GroupCategoryData.from_json(self._get_group_category(org_unit_id, group_category_id))
+        return bsapi.types.GroupCategoryData.from_json(
+            self._get_group_category(org_unit_id, group_category_id)
+        )
 
     def _get_groups(self, org_unit_id: int, group_category_id: int):
         """Wrapper for https://docs.valence.desire2learn.com/res/groups.html#get--d2l-api-lp-(version)-(orgUnitId)-groupcategories-(groupCategoryId)-groups-"""
@@ -1247,9 +1140,10 @@ class BSAPI:
             raise APIError.from_response(response)
 
     def _get(self, api_route: str, query_params=None) -> requests.Response:
-        url = self.context.create_authenticated_url(api_route, method="GET")
+        url = self._create_url(api_route)
+        headers = self._get_auth_headers()
         try:
-            response = requests.get(url, params=query_params)
+            response = requests.get(url, params=query_params, headers=headers)
         except requests.exceptions.RequestException as e:
             raise APIError(f"Failed to perform GET due to request exception: {e}")
 
@@ -1258,9 +1152,10 @@ class BSAPI:
     def _put(
         self, api_route: str, json=None, check_status: bool = False
     ) -> requests.Response:
-        url = self.context.create_authenticated_url(api_route, method="PUT")
+        url = self._create_url(api_route)
+        headers = self._get_auth_headers()
         try:
-            response = requests.put(url, json=json)
+            response = requests.put(url, json=json, headers=headers)
         except requests.exceptions.RequestException as e:
             raise APIError(f"Failed to perform PUT due to request exception: {e}")
 
@@ -1278,13 +1173,16 @@ class BSAPI:
         headers=None,
         allow_redirects: bool = True,
     ) -> requests.Response:
-        url = self.context.create_authenticated_url(api_route, method="POST")
+        url = self._create_url(api_route)
+        auth_headers = self._get_auth_headers()
+        if headers:
+            auth_headers.update(headers)
         try:
             response = requests.post(
                 url,
                 json=json,
                 data=data,
-                headers=headers,
+                headers=auth_headers,
                 allow_redirects=allow_redirects,
             )
         except requests.exceptions.RequestException as e:
@@ -1298,9 +1196,10 @@ class BSAPI:
     def _delete(
         self, api_route: str, json=None, check_status: bool = False
     ) -> requests.Response:
-        url = self.context.create_authenticated_url(api_route, method="DELETE")
+        url = self._create_url(api_route)
+        headers = self._get_auth_headers()
         try:
-            response = requests.delete(url, json=json)
+            response = requests.delete(url, json=json, headers=headers)
         except requests.exceptions.RequestException as e:
             raise APIError(f"Failed to perform DELETE due to request exception: {e}")
 
