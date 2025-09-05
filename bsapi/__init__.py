@@ -459,9 +459,7 @@ class BSAPI:
         # even 'USEr' for example seems to work fine. As such be lenient with the check performed here.
         assert entity_type.lower() in self._VALID_ENTITY_TYPES, "Unknown entity type"
         assert score is None or symbol is None, "score and symbol cannot both be set"
-        assert (
-            score is not None or symbol is not None
-        ), "score and symbol cannot both be none"
+        # For text-only feedback both score and symbol must be None, so allow this.
 
         feedback_type = "Text" if html_feedback is None else "Html"
         feedback_value = feedback if html_feedback is None else html_feedback
