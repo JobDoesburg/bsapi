@@ -48,6 +48,31 @@ def exchange_code_for_token(
     return response.json()
 
 
+def refresh_access_token(
+    client_id: str, client_secret: str, refresh_token: str
+) -> dict:
+    """Exchange refresh token for access token using explicit form encoding."""
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Python-BS-API-Client/1.0",
+    }
+
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
+
+    response = requests.post(BS_OAUTH_TOKEN_URL, data=data, headers=headers)
+    if response.status_code != 200:
+        raise APIError(
+            f"Token refresh failed: {response.status_code}: {response.text}"
+        )
+
+    return response.json()
+
+
 def parse_callback_url(callback_url: str) -> str:
     """Parse OAuth callback URL to extract authorization code."""
     components = urllib.parse.urlsplit(callback_url)
