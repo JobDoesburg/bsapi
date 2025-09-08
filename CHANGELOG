@@ -1,3 +1,8 @@
+# [2.1.0] - 2025-09-08
+
+- Feature: OAuth2 refresh tokens.
+- Fix: Allow setting text-only feedback without score or symbol in `BSAPI.set_dropbox_folder_submission_feedback`.
+
 # [2.0.0] - 2025-07-09
 
 - Feature: Use OAuth2 for authentication instead of ID Key Authorization (dropping support for ID Key Authorization and the Identity Manager).
