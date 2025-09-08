@@ -62,6 +62,48 @@ access_token = token_response['access_token']
 api = bsapi.BSAPI(access_token, lms_url)
 ```
 
+### OAuth token refreshing
+
+Access tokens expire after some time.
+Once expired you must either go through the authorization OAuth 2.0 flow described above again, or if available use the issued refresh token, using the OAuth 2.0 flow:
+
+```python
+import bsapi
+from bsapi import oauth
+
+# Step 1: Create authorization URL
+client_id = '<your client id>'
+redirect_uri = '<your redirect URI>'
+scope = "core:*:* grades:*:*"
+auth_url = oauth.create_auth_url(client_id, redirect_uri, scope)
+print(f'Visit: {auth_url}')
+
+# Step 2: After user authorizes, extract code from callback URL
+callback_url = '<URL user was redirected to>'
+authorization_code = oauth.parse_callback_url(callback_url)
+
+# Step 3: Exchange code for access token
+client_secret = '<your client secret>'
+token_response = oauth.exchange_code_for_token(
+    client_id, client_secret, redirect_uri, authorization_code
+)
+access_token = token_response['access_token']
+refresh_token = token_response['refresh_token']
+
+# Step 4: Use access token with API
+api = bsapi.BSAPI(access_token, lms_url)
+
+# Step 5: After some time the access token expires, so refresh it
+refresh_response = oauth.refresh_access_token(
+    client_id, client_secret, refresh_token
+)
+new_access_token = refresh_response['access_token']
+# response also contains another refresh_token entry for future use
+
+# Step 6: Use new access token with API
+api = bsapi.BSAPI(new_access_token, lms_url)
+```
+
 ## Design
 
 The `bsapi.BSAPI` class provides wrappers for a subset of commonly used API endpoints and uses OAuth authentication via Bearer tokens.
