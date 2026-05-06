@@ -35,20 +35,20 @@
             homepage = "https://pypi.org/project/brightspace-api/";
             license = licenses.mit;
             maintainers = [ 
-    	      {
-      		name = "Mark Boute";
-      		github = "mark-boute";
-      		email = "mark.boute@ru.nl";
+    	        {
+                name = "Mark Boute";
+                github = "mark-boute";
+                email = "mark.boute@ru.nl";
               }
             ];
-	  };
+	        };
         };
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
             (python.withPackages (ps: [
               self.packages.${system}.default
-	      ps.black
+	            ps.black
             ]))
           ];
         };
