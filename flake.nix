@@ -48,6 +48,7 @@
           buildInputs = [
             (python.withPackages (ps: [
               self.packages.${system}.default
+	      ps.black
             ]))
           ];
         };
