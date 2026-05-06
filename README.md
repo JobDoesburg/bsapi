@@ -1,16 +1,42 @@
 # BSAPI
 
+[![PyPI version](https://img.shields.io/pypi/v/brightspace-api.svg)](https://pypi.org/project/brightspace-api/)
+[![Python versions](https://img.shields.io/pypi/pyversions/brightspace-api.svg)](https://pypi.org/project/brightspace-api/)
+[![License](https://img.shields.io/pypi/l/brightspace-api.svg)](https://pypi.org/project/brightspace-api/)
+
 A basic Python wrapper for the [D2LValence Brightspace API](https://docs.valence.desire2learn.com).
+
+The package is published on PyPI as [`brightspace-api`](https://pypi.org/project/brightspace-api/).
 
 ## Installation
 
-The package can be installed using `pip` by running `python -m pip install brightspace-api`.
+Install the latest release from PyPI:
 
-## Example usage
+```bash
+python -m pip install brightspace-api
+```
 
-To construct a `bsapi.BSAPI` instance, you need the LMS host URL and an OAuth access token (see below for how to obtain one).
+To upgrade an existing installation:
+
+```bash
+python -m pip install --upgrade brightspace-api
+```
+
+Requires Python 3.10 or newer. The only runtime dependency is [`requests`](https://pypi.org/project/requests/), which `pip` will install automatically.
+
+After installation, the package is importable as `bsapi`:
 
 ```python
+import bsapi
+```
+
+## Quick start
+
+To construct a `bsapi.BSAPI` instance, you need the LMS host URL and an OAuth access token (see [OAuth Authentication](#oauth-authentication) below for how to obtain one).
+
+```python
+import bsapi
+
 access_token = '<your OAuth access token>'
 lms_url = '<your LMS host URL>'
 le_version = '1.79'
@@ -130,6 +156,31 @@ The use case for this module is graders writing student feedback in plain-text w
 The `bsapi.helper` module defines an `APIHelper` class that wraps around a `bsapi.BSAPI` instance.
 It extends the API by providing helper methods to perform common operations not directly supported by the API.
 
-## Building
+## Building from source
 
-Execute `python3 -m build` to build the Python wheel, which can then be installed using `python3 -m pip install <bsapi-...-py3-none-any.whl>`.
+Clone the repository and install the build front-end:
+
+```bash
+python -m pip install --upgrade build
+```
+
+Then build the source distribution and wheel:
+
+```bash
+python -m build
+```
+
+The resulting artifacts are written to `dist/`. Install the built wheel locally with:
+
+```bash
+python -m pip install dist/brightspace_api-<version>-py3-none-any.whl
+```
+
+## Links
+
+- PyPI: <https://pypi.org/project/brightspace-api/>
+- Brightspace (D2L Valence) API documentation: <https://docs.valence.desire2learn.com>
+
+## License
+
+Distributed under the terms of the [LICENSE](LICENSE) file included in this repository.
