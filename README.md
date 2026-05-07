@@ -179,6 +179,8 @@ python -m pip install dist/brightspace_api-<version>-py3-none-any.whl
 ## Links
 
 - PyPI: <https://pypi.org/project/brightspace-api/>
+- Source: <https://github.com/JobDoesburg/bsapi>
+- Issues: <https://github.com/JobDoesburg/bsapi/issues>
 - Brightspace (D2L Valence) API documentation: <https://docs.valence.desire2learn.com>
 
 ## License

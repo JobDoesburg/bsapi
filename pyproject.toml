@@ -38,7 +38,7 @@ line-length = 88
 target-version = ["py310"]
 
 [project.urls]
-Homepage = "https://gitlab.science.ru.nl/brightspace/bsapi"
-Source = "https://gitlab.science.ru.nl/brightspace/bsapi"
-Issues = "https://gitlab.science.ru.nl/brightspace/bsapi/-/issues"
+Homepage = "https://github.com/JobDoesburg/bsapi"
+Source = "https://github.com/JobDoesburg/bsapi"
+Issues = "https://github.com/JobDoesburg/bsapi/issues"
 "Brightspace API docs" = "https://docs.valence.desire2learn.com"
