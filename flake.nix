@@ -6,8 +6,14 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs { inherit system; };
         python = pkgs.python3;
@@ -35,14 +41,14 @@
             description = pyproject.project.description;
             homepage = "https://pypi.org/project/brightspace-api/";
             license = licenses.mit;
-            maintainers = [ 
-    	        {
+            maintainers = [
+              {
                 name = "Mark Boute";
                 github = "mark-boute";
                 email = "mark.boute@ru.nl";
               }
             ];
-	        };
+          };
         };
 
         devShells.default = pkgs.mkShell {
@@ -51,9 +57,10 @@
 
           buildInputs = [
             (python.withPackages (ps: [
-	            ps.black
+              ps.black
             ]))
           ];
         };
-      });
+      }
+    );
 }
