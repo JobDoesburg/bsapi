@@ -46,6 +46,9 @@
         };
 
         devShells.default = pkgs.mkShell {
+
+          inputsFrom = [ self.packages.${system}.default ];
+
           buildInputs = [
             (python.withPackages (ps: [
 	            ps.black
