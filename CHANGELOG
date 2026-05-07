@@ -1,3 +1,8 @@
+# [2.1.2] - 2026-05-07
+
+- Feature: Nix flake (`flake.nix`) for reproducible development and builds.
+- Chore: Project URLs in `pyproject.toml` and the README now point to the GitHub mirror at https://github.com/JobDoesburg/bsapi.
+
 # [2.1.1] - 2026-05-06
 
 - Fix: `APIError.__init__` now properly forwards the cause to `RuntimeError`, so `str(err)` is no longer empty.
