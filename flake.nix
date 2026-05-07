@@ -11,14 +11,15 @@
       let
         pkgs = import nixpkgs { inherit system; };
         python = pkgs.python3;
+        pyproject = pkgs.lib.fromTOML (builtins.readFile ./pyproject.toml);
       in
       {
         packages.default = python.pkgs.buildPythonPackage {
-          pname = "brightspace-api";
-          version = "2.1.0";
+          pname = pyproject.project.name;
+          version = pyproject.project.version;
           format = "pyproject";
 
-          src = ./.;
+          src = self;
 
           nativeBuildInputs = with python.pkgs; [
             setuptools
@@ -31,7 +32,7 @@
           pythonImportsCheck = [ "bsapi" ];
 
           meta = with pkgs.lib; {
-            description = "Basic Python wrapper for the D2LValence Brightspace API";
+            description = pyproject.project.description;
             homepage = "https://pypi.org/project/brightspace-api/";
             license = licenses.mit;
             maintainers = [ 
@@ -47,7 +48,6 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             (python.withPackages (ps: [
-              self.packages.${system}.default
 	            ps.black
             ]))
           ];
