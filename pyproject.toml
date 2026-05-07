@@ -4,15 +4,41 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brightspace-api"
-version = "2.1.0"
+version = "2.1.1"
 authors = [
     { name="Ciske Harsema", email="Ciske.Harsema@ru.nl" },
     { name="Job Doesburg", email="Job.Doesburg@ru.nl" }
 ]
 description = "Basic Python wrapper for the D2LValence Brightspace API using OAuth 2.0, with some added utilities and text to HTML conversion."
 dependencies = [
-    "requests"
+    "requests",
 ]
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.0.0",
+    "build>=1.5.0",
+    "twine>=5.0.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[project.urls]
+Homepage = "https://gitlab.science.ru.nl/brightspace/bsapi"
+Source = "https://gitlab.science.ru.nl/brightspace/bsapi"
+Issues = "https://gitlab.science.ru.nl/brightspace/bsapi/-/issues"
+"Brightspace API docs" = "https://docs.valence.desire2learn.com"

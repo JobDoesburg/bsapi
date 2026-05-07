@@ -444,11 +444,11 @@ class RubricAssessment:
             rubric_id=json_obj["RubricId"],
             overall_score=json_obj["OverallScore"],
             overall_feedback=RichText.from_json(json_obj["OverallFeedback"]),
-            overall_level=RubricAssessment.OverallLevel.from_json(
-                json_obj["OverallLevel"]
-            )
-            if json_obj["OverallLevel"]
-            else None,
+            overall_level=(
+                RubricAssessment.OverallLevel.from_json(json_obj["OverallLevel"])
+                if json_obj["OverallLevel"]
+                else None
+            ),
             overall_score_overridden=json_obj["OverallScoreOverridden"],
             overall_feedback_overridden=json_obj["OverallFeedbackOverridden"],
             criteria_outcome=[
@@ -598,9 +598,11 @@ class DropboxFolder:
             total_users=json_obj["TotalUsers"],
             total_users_with_submissions=json_obj["TotalUsersWithSubmissions"],
             total_users_with_feedback=json_obj["TotalUsersWithFeedback"],
-            availability=DropboxFolder.Availability.from_json(json_obj["Availability"])
-            if json_obj["Availability"]
-            else None,
+            availability=(
+                DropboxFolder.Availability.from_json(json_obj["Availability"])
+                if json_obj["Availability"]
+                else None
+            ),
             group_type_id=json_obj["GroupTypeId"],
             due_date=_parse_utc_date_time(json_obj["DueDate"]),
             display_in_calendar=json_obj["DisplayInCalendar"],
@@ -669,9 +671,11 @@ class DropboxFeedbackOut:
     def from_json(json_obj: dict):
         return DropboxFeedbackOut(
             score=json_obj["Score"],
-            feedback=RichText.from_json(json_obj["Feedback"])
-            if json_obj["Feedback"]
-            else None,
+            feedback=(
+                RichText.from_json(json_obj["Feedback"])
+                if json_obj["Feedback"]
+                else None
+            ),
             rubric_assessments=[
                 RubricAssessment.from_json(assessment)
                 for assessment in json_obj["RubricAssessments"]
@@ -782,9 +786,11 @@ class EntityDropBox:
         return EntityDropBox(
             entity=Entity.from_json(json_obj["Entity"]),
             status=json_obj["Status"],
-            feedback=DropboxFeedbackOut.from_json(json_obj["Feedback"])
-            if json_obj["Feedback"]
-            else None,
+            feedback=(
+                DropboxFeedbackOut.from_json(json_obj["Feedback"])
+                if json_obj["Feedback"]
+                else None
+            ),
             submissions=[
                 EntityDropBox.Submission.from_json(submission)
                 for submission in json_obj["Submissions"]
@@ -1009,9 +1015,11 @@ class GradeObject:
             category_id=json_obj["CategoryId"],
             description=RichText.from_json(json_obj["Description"]),
             weight=json_obj["Weight"],
-            associated_tool=AssociatedTool.from_json(json_obj["AssociatedTool"])
-            if json_obj["AssociatedTool"]
-            else None,
+            associated_tool=(
+                AssociatedTool.from_json(json_obj["AssociatedTool"])
+                if json_obj["AssociatedTool"]
+                else None
+            ),
             is_hidden=json_obj["IsHidden"],
             max_points=json_obj.get("MaxPoints", None),
             is_bonus=json_obj.get("IsBonus", None),
@@ -1123,9 +1131,11 @@ class UserGradeValue:
     def from_json(json_obj: dict):
         return UserGradeValue(
             user=User.from_json(json_obj["User"]),
-            grade_value=GradeValue.from_json(json_obj["GradeValue"])
-            if json_obj["GradeValue"]
-            else None,
+            grade_value=(
+                GradeValue.from_json(json_obj["GradeValue"])
+                if json_obj["GradeValue"]
+                else None
+            ),
         )
 
 

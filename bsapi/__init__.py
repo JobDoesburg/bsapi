@@ -6,8 +6,9 @@ import mimetypes
 import numbers
 import os
 import pathlib
-from typing import Optional
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import urllib.parse
 
 import bsapi.types
@@ -15,18 +16,21 @@ import bsapi.types
 ENTITY_TYPE_GROUP = "group"
 ENTITY_TYPE_USER = "user"
 
+DEFAULT_TIMEOUT = (10, 60)  # (connect, read) seconds
+
 logger = logging.getLogger(__name__)
 
 
 class APIError(RuntimeError):
     """Error while calling the Brightspace API."""
 
-    def __init__(self, cause: str, response: requests.Response = None):
+    def __init__(self, cause: str, response: requests.Response | None = None):
         """Construct a new API error instance.
 
         :param cause: The cause of the API error.
         :param response: The response that generated the API error, if available.
         """
+        super().__init__(cause)
         self.cause = cause
         self.response = response
 
@@ -57,7 +61,21 @@ class APIConfig:
 
         :param obj: The JSON dictionary.
         :return: The `APIConfig` instance.
+        :raise ValueError: If any required field is missing.
         """
+        required = (
+            "clientId",
+            "clientSecret",
+            "lmsUrl",
+            "redirectUri",
+            "leVersion",
+            "lpVersion",
+        )
+        missing = [k for k in required if k not in obj]
+        if missing:
+            raise ValueError(
+                f"APIConfig JSON is missing required fields: {', '.join(missing)}"
+            )
         return APIConfig(
             client_id=obj["clientId"],
             client_secret=obj["clientSecret"],
@@ -93,6 +111,8 @@ class BSAPI:
         host: str,
         le_version: str = "1.79",
         lp_version: str = "1.47",
+        timeout: float | tuple[float, float] | None = DEFAULT_TIMEOUT,
+        session: requests.Session | None = None,
     ):
         """Construct a new Brightspace API wrapper instance.
 
@@ -100,11 +120,34 @@ class BSAPI:
         :param host: The host URL for the API.
         :param le_version: The version to use for the LE product component.
         :param lp_version: The version to use for the LP product component.
+        :param timeout: Request timeout in seconds, forwarded to `requests`. May be a single float or a
+                        `(connect, read)` tuple. Set to `None` to wait forever (not recommended).
+        :param session: A pre-configured `requests.Session` to use. If `None`, a new session with
+                        connection pooling and 429/5xx retries is created.
         """
         self.access_token = access_token
         self.host = host
         self.le_version = le_version
         self.lp_version = lp_version
+        self.timeout = timeout
+        self.session = session if session is not None else self._build_session()
+
+    @staticmethod
+    def _build_session() -> requests.Session:
+        # Retries 429 and 5xx with exponential backoff, honouring Retry-After.
+        retry = Retry(
+            total=5,
+            backoff_factor=0.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=("GET", "PUT", "POST", "DELETE"),
+            respect_retry_after_header=True,
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=retry)
+        session = requests.Session()
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        return session
 
     @staticmethod
     def from_config(config: APIConfig, access_token: str):
@@ -114,6 +157,13 @@ class BSAPI:
     def _create_url(self, api_route: str) -> str:
         """Create URL for API requests."""
         return urllib.parse.urlunsplit(("https", self.host, api_route, "", ""))
+
+    def _check_entity_type(self, entity_type: str) -> None:
+        # The API states it must be either 'group' or 'user', but in JSON returned by the API the field actually
+        # comes back as 'Group' or 'User'. The case in general does not seem to matter (even 'USEr' works),
+        # so we are lenient here.
+        if entity_type.lower() not in self._VALID_ENTITY_TYPES:
+            raise ValueError(f"Unknown entity type: {entity_type!r}")
 
     def _get_auth_headers(self) -> dict:
         """Get authorization headers for API requests."""
@@ -231,7 +281,12 @@ class BSAPI:
             for user in self._get_classlist_paged(org_unit_id)
         ]
 
-    def _get_users(self, org_unit_id: int, is_active: bool = None, role_id: str = None):
+    def _get_users(
+        self,
+        org_unit_id: int,
+        is_active: bool | None = None,
+        role_id: str | None = None,
+    ):
         """Wrapper for https://docs.valence.desire2learn.com/res/enroll.html#get--d2l-api-lp-(version)-enrollments-orgUnits-(orgUnitId)-users-"""
         params = dict()
         if is_active is not None:
@@ -245,7 +300,10 @@ class BSAPI:
         )
 
     def get_users(
-        self, org_unit_id: int, is_active: bool = None, role_id: str = None
+        self,
+        org_unit_id: int,
+        is_active: bool | None = None,
+        role_id: str | None = None,
     ) -> list[bsapi.types.OrgUnitUser]:
         """Wrapper for https://docs.valence.desire2learn.com/res/enroll.html#get--d2l-api-lp-(version)-enrollments-orgUnits-(orgUnitId)-users-"""
         return [
@@ -365,12 +423,9 @@ class BSAPI:
         """Wrapper for https://docs.valence.desire2learn.com/res/dropbox.html#get--d2l-api-le-(version)-(orgUnitId)-dropbox-folders-(folderId)-feedback-(entityType)-(entityId).
 
         :return: The JSON object received from the API call, or `None` if the API call returned with a 404 status code.
-        :raise AssertionError: If the given entity type is not valid, which must be either `group` or `user`.
+        :raise ValueError: If the given entity type is not valid, which must be either `group` or `user`.
         """
-        # The API states it must be either 'group' or 'user', but in the JSON object returned by this API call it
-        # actually returns 'Group' or 'User' for the 'EntityType' field. The case in general does not seem to matter as
-        # even 'USEr' for example seems to work fine. As such be lenient with the check performed here.
-        assert entity_type.lower() in self._VALID_ENTITY_TYPES, "Unknown entity type"
+        self._check_entity_type(entity_type)
 
         return self._get_json(
             self._get_le_route(
@@ -381,11 +436,11 @@ class BSAPI:
 
     def get_dropbox_folder_submission_feedback(
         self, org_unit_id: int, folder_id: int, entity_type: str, entity_id: int
-    ) -> Optional[bsapi.types.DropboxFeedbackOut]:
+    ) -> bsapi.types.DropboxFeedbackOut | None:
         """Wrapper for https://docs.valence.desire2learn.com/res/dropbox.html#get--d2l-api-le-(version)-(orgUnitId)-dropbox-folders-(folderId)-feedback-(entityType)-(entityId).
 
         :return: The `DropboxFeedbackOut` object received from the API call, or `None` if the API call returned with a 404 status code.
-        :raise AssertionError: If the given entity type is not valid, which must be either `group` or `user`.
+        :raise ValueError: If the given entity type is not valid, which must be either `group` or `user`.
         """
         json_obj = self._get_dropbox_folder_submission_feedback(
             org_unit_id, folder_id, entity_type, entity_id
@@ -402,10 +457,7 @@ class BSAPI:
         file_id: int,
     ) -> bytes:
         """Wrapper for https://docs.valence.desire2learn.com/res/dropbox.html#get--d2l-api-le-(version)-(orgUnitId)-dropbox-folders-(folderId)-feedback-(entityType)-(entityId)-attachments-(fileId)"""
-        # The API states it must be either 'group' or 'user', but in the JSON object returned by this API call it
-        # actually returns 'Group' or 'User' for the 'EntityType' field. The case in general does not seem to matter as
-        # even 'USEr' for example seems to work fine. As such be lenient with the check performed here.
-        assert entity_type.lower() in self._VALID_ENTITY_TYPES, "Unknown entity type"
+        self._check_entity_type(entity_type)
 
         return self._get_binary(
             self._get_le_route(
@@ -422,10 +474,7 @@ class BSAPI:
         file_id: int,
     ):
         """Wrapper for https://docs.valence.desire2learn.com/res/dropbox.html#delete--d2l-api-le-(version)-(orgUnitId)-dropbox-folders-(folderId)-feedback-(entityType)-(entityId)-attachments-(fileId)"""
-        # The API states it must be either 'group' or 'user', but in the JSON object returned by this API call it
-        # actually returns 'Group' or 'User' for the 'EntityType' field. The case in general does not seem to matter as
-        # even 'USEr' for example seems to work fine. As such be lenient with the check performed here.
-        assert entity_type.lower() in self._VALID_ENTITY_TYPES, "Unknown entity type"
+        self._check_entity_type(entity_type)
 
         self._delete(
             self._get_le_route(
@@ -440,10 +489,10 @@ class BSAPI:
         folder_id: int,
         entity_type: str,
         entity_id: int,
-        score: float = None,
-        symbol: str = None,
+        score: float | None = None,
+        symbol: str | None = None,
         feedback: str = "",
-        html_feedback: str = None,
+        html_feedback: str | None = None,
         draft: bool = False,
     ):
         """Wrapper for https://docs.valence.desire2learn.com/res/dropbox.html#post--d2l-api-le-(version)-(orgUnitId)-dropbox-folders-(folderId)-feedback-(entityType)-(entityId).
@@ -452,13 +501,11 @@ class BSAPI:
         Both a numeric score and a string symbol can be given, but the symbol is only valid for SelectBox grades.
         A score and symbol cannot be given at the same time; one of the two must be provided.
 
-        :raise AssertionError: If the given entity type is not valid, if both a score and symbol is set, or if neither score nor symbol is set.
+        :raise ValueError: If the given entity type is not valid, or if both a score and symbol are set.
         """
-        # The API states it must be either 'group' or 'user', but in the JSON object returned by other API calls it
-        # actually returns 'Group' or 'User' for the 'EntityType' field. The case in general does not seem to matter as
-        # even 'USEr' for example seems to work fine. As such be lenient with the check performed here.
-        assert entity_type.lower() in self._VALID_ENTITY_TYPES, "Unknown entity type"
-        assert score is None or symbol is None, "score and symbol cannot both be set"
+        self._check_entity_type(entity_type)
+        if score is not None and symbol is not None:
+            raise ValueError("score and symbol cannot both be set")
         # For text-only feedback both score and symbol must be None, so allow this.
 
         feedback_type = "Text" if html_feedback is None else "Html"
@@ -541,10 +588,10 @@ class BSAPI:
         entity_type: str,
         entity_id: int,
         file_path: pathlib.Path,
-        file_name: str = None,
-        content_type: str = None,
+        file_name: str | None = None,
+        content_type: str | None = None,
         chunk_size: int = 1024 * 1024 * 16,
-        progress_callback: Callable[[int, int], None] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ):
         """Upload and attach a new file to the feedback of the provided entity. The entity must have been given feedback
         before this is possible, which may be in a draft state. The file is uploaded in fixed size chunks. Smaller chunk
@@ -570,7 +617,8 @@ class BSAPI:
                 errno.ENOENT, os.strerror(errno.ENOENT), file_path.name
             )
         file_size = file_path.stat().st_size
-        assert file_size > 0, "Uploading empty files is not possible"
+        if file_size == 0:
+            raise ValueError("Uploading empty files is not possible")
 
         # Attempt to determine MIME type from file name if one was not provided.
         # This may fail, so fall back to octet stream if that happens.
@@ -832,7 +880,7 @@ class BSAPI:
         )
 
     def _get_grade_values(
-        self, org_unit_id: int, grade_object_id: int, is_graded: bool = None
+        self, org_unit_id: int, grade_object_id: int, is_graded: bool | None = None
     ):
         """Wrapper for https://docs.valence.desire2learn.com/res/grade.html#get--d2l-api-le-(version)-(orgUnitId)-grades-(gradeObjectId)-values-"""
         params = dict()
@@ -845,7 +893,7 @@ class BSAPI:
         )
 
     def get_grade_values(
-        self, org_unit_id: int, grade_object_id: int, is_graded: bool = None
+        self, org_unit_id: int, grade_object_id: int, is_graded: bool | None = None
     ) -> list[bsapi.types.UserGradeValue]:
         """Wrapper for https://docs.valence.desire2learn.com/res/grade.html#get--d2l-api-le-(version)-(orgUnitId)-grades-(gradeObjectId)-values-"""
         return [
@@ -864,7 +912,7 @@ class BSAPI:
 
     def get_grade_value(
         self, org_unit_id: int, grade_object_id: int, user_id: int
-    ) -> Optional[bsapi.types.GradeValue]:
+    ) -> bsapi.types.GradeValue | None:
         """Wrapper for https://docs.valence.desire2learn.com/res/grade.html#get--d2l-api-le-(version)-(orgUnitId)-grades-(gradeObjectId)-values-(userId)"""
         json_obj = self._get_grade_value(org_unit_id, grade_object_id, user_id)
 
@@ -881,7 +929,7 @@ class BSAPI:
 
     def get_my_grade_value(
         self, org_unit_id: int, grade_object_id: int
-    ) -> Optional[bsapi.types.GradeValue]:
+    ) -> bsapi.types.GradeValue | None:
         """Wrapper for https://docs.valence.desire2learn.com/res/grade.html#get--d2l-api-le-(version)-(orgUnitId)-grades-(gradeObjectId)-values-myGradeValue"""
         json_obj = self._get_my_grade_value(org_unit_id, grade_object_id)
 
@@ -973,11 +1021,13 @@ class BSAPI:
             bsapi.types.GRADE_OBJECT_SELECT_BOX: ("Value", str),
             bsapi.types.GRADE_OBJECT_TEXT: ("Text", str),
         }
-        assert object_type in grade_mapping, "Unknown object type"
+        if object_type not in grade_mapping:
+            raise ValueError(f"Unknown object type: {object_type!r}")
         field_name, type_ = grade_mapping[object_type]
-        assert isinstance(
-            grade_value, type_
-        ), f'Incorrect grade value type "{type(grade_value).__name__}", expected "{type_.__name__}"'
+        if not isinstance(grade_value, type_):
+            raise TypeError(
+                f'Incorrect grade value type "{type(grade_value).__name__}", expected "{type_.__name__}"'
+            )
 
         # Since bool is a subclass of int we need to special case it. Otherwise, the json serialization will encode True
         # and False as true/false, rather than a numeric value 1/0, for numeric grades.
@@ -1093,7 +1143,7 @@ class BSAPI:
         objects.extend(page["Objects"])
 
         while page["Next"] is not None:
-            logging.debug(f'Continuing with next page: {page["Next"]}')
+            logger.debug(f'Continuing with next page: {page["Next"]}')
             components = urllib.parse.urlsplit(page["Next"])
             new_query_params = urllib.parse.parse_qs(components.query)
             page = self._get_json(components.path, new_query_params)
@@ -1107,12 +1157,13 @@ class BSAPI:
 
         items.extend(segment["Items"])
 
+        # Copy so we don't mutate the caller's dict when adding the bookmark.
+        query_params = dict(query_params) if query_params else {}
+
         while segment["PagingInfo"]["HasMoreItems"]:
-            logging.debug(
+            logger.debug(
                 f'Continuing with next bookmark: {segment["PagingInfo"]["Bookmark"]}'
             )
-            if query_params is None:
-                query_params = dict()
             query_params["bookmark"] = segment["PagingInfo"]["Bookmark"]
             segment = self._get_json(api_route, query_params)
             items.extend(segment["Items"])
@@ -1141,7 +1192,9 @@ class BSAPI:
         url = self._create_url(api_route)
         headers = self._get_auth_headers()
         try:
-            response = requests.get(url, params=query_params, headers=headers)
+            response = self.session.get(
+                url, params=query_params, headers=headers, timeout=self.timeout
+            )
         except requests.exceptions.RequestException as e:
             raise APIError(f"Failed to perform GET due to request exception: {e}")
 
@@ -1153,7 +1206,9 @@ class BSAPI:
         url = self._create_url(api_route)
         headers = self._get_auth_headers()
         try:
-            response = requests.put(url, json=json, headers=headers)
+            response = self.session.put(
+                url, json=json, headers=headers, timeout=self.timeout
+            )
         except requests.exceptions.RequestException as e:
             raise APIError(f"Failed to perform PUT due to request exception: {e}")
 
@@ -1176,12 +1231,13 @@ class BSAPI:
         if headers:
             auth_headers.update(headers)
         try:
-            response = requests.post(
+            response = self.session.post(
                 url,
                 json=json,
                 data=data,
                 headers=auth_headers,
                 allow_redirects=allow_redirects,
+                timeout=self.timeout,
             )
         except requests.exceptions.RequestException as e:
             raise APIError(f"Failed to perform POST due to request exception: {e}")
@@ -1197,7 +1253,9 @@ class BSAPI:
         url = self._create_url(api_route)
         headers = self._get_auth_headers()
         try:
-            response = requests.delete(url, json=json, headers=headers)
+            response = self.session.delete(
+                url, json=json, headers=headers, timeout=self.timeout
+            )
         except requests.exceptions.RequestException as e:
             raise APIError(f"Failed to perform DELETE due to request exception: {e}")
 

@@ -1,3 +1,16 @@
+# [2.1.1] - 2026-05-06
+
+- Fix: `APIError.__init__` now properly forwards the cause to `RuntimeError`, so `str(err)` is no longer empty.
+- Fix: `_get_paged_set` no longer mutates the caller's `query_params` dict.
+- Fix: paged debug logs now use the `bsapi` logger instead of the root logger.
+- Improvement: all HTTP requests now use a configurable timeout (default `(10s, 60s)`).
+- Improvement: a shared `requests.Session` with connection pooling and 429/5xx retries is used for all calls. A custom session can be injected via `BSAPI(..., session=...)` and into the OAuth helpers.
+- Improvement: `oauth.create_auth_url`, `exchange_code_for_token`, and `refresh_access_token` accept overrides for the auth/token URLs (for non-default Brightspace tenants).
+- Improvement: input validation now raises `ValueError`/`TypeError` instead of `AssertionError`, so checks survive `python -O`.
+- Improvement: `APIConfig.from_json` now raises a clear `ValueError` listing missing fields.
+- Chore: PyPI metadata now exposes Python version classifiers, an SPDX license, and project URLs.
+- Chore: `bsapi/config.json` is now gitignored (it typically holds OAuth client credentials).
+
 # [2.1.0] - 2025-09-08
 
 - Feature: OAuth2 refresh tokens.

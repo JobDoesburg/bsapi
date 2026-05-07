@@ -2,7 +2,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/brightspace-api.svg)](https://pypi.org/project/brightspace-api/)
 [![Python versions](https://img.shields.io/pypi/pyversions/brightspace-api.svg)](https://pypi.org/project/brightspace-api/)
-[![License](https://img.shields.io/pypi/l/brightspace-api.svg)](https://pypi.org/project/brightspace-api/)
+[![License](https://img.shields.io/pypi/l/brightspace-api.svg)](LICENSE)
 
 A basic Python wrapper for the [D2LValence Brightspace API](https://docs.valence.desire2learn.com).
 
